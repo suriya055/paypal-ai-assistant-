@@ -3,7 +3,8 @@ dotenv.config();
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE || 'https://api-m.sandbox.paypal.com';
+const rawApiBase = process.env.PAYPAL_API_BASE || 'https://api-m.sandbox.paypal.com';
+const PAYPAL_API_BASE = rawApiBase.trim().replace(/\/+$/, '');
 
 /**
  * Returns the configured base URL for the application (e.g., https://my-app.onrender.com or http://localhost:3000).
@@ -17,6 +18,22 @@ export function getBaseUrl() {
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
+
+/**
+ * Safely parses response body as JSON. Returns parsed object, or fallback object if empty/non-JSON.
+ * Never throws "Unexpected end of JSON input".
+ */
+async function parseResponseBody(response) {
+  try {
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      return {};
+    }
+    return JSON.parse(text);
+  } catch (err) {
+    return { _rawText: err.message };
+  }
+}
 
 /**
  * Retrieves an OAuth2 Access Token from PayPal Sandbox using client credentials.
@@ -43,12 +60,12 @@ export async function getAccessToken() {
     body: 'grant_type=client_credentials',
   });
 
+  const data = await parseResponseBody(response);
+
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`PayPal OAuth failure (${response.status}): ${errorBody}`);
+    throw new Error(`PayPal OAuth failure (${response.status}): ${data.error_description || data.error || JSON.stringify(data)}`);
   }
 
-  const data = await response.json();
   cachedToken = data.access_token;
   tokenExpiresAt = Date.now() + (data.expires_in || 3600) * 1000;
 
@@ -97,10 +114,11 @@ export async function createOrder({ invoiceId, amount, currency = 'USD', descrip
     body: JSON.stringify(orderPayload),
   });
 
-  const orderData = await response.json();
+  const orderData = await parseResponseBody(response);
 
   if (!response.ok) {
-    throw new Error(`PayPal Order Creation failed (${response.status}): ${JSON.stringify(orderData)}`);
+    const detail = orderData.details?.[0]?.description || orderData.message || JSON.stringify(orderData);
+    throw new Error(`PayPal Order Creation failed (${response.status}): ${detail}`);
   }
 
   const approveLink = orderData.links?.find((link) => link.rel === 'approve');
@@ -130,24 +148,46 @@ export async function captureOrder(orderId) {
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
     },
+    body: JSON.stringify({}), // Explicit empty JSON body ensures valid HTTP POST payload across all proxies
   });
 
-  const captureData = await response.json();
+  const captureData = await parseResponseBody(response);
 
-  if (!response.ok) {
-    // If order was already captured (e.g. repeated callback or page reload), treat as completed
-    const isAlreadyCaptured =
-      captureData?.details?.some((d) => d.issue === 'ORDER_ALREADY_CAPTURED') ||
-      captureData?.name === 'ORDER_ALREADY_CAPTURED';
-
-    if (isAlreadyCaptured) {
-      return { id: orderId, status: 'COMPLETED', alreadyCaptured: true };
-    }
-
-    throw new Error(`PayPal Capture failed (${response.status}): ${JSON.stringify(captureData)}`);
+  // If capture responded with 200/201 or 204 No Content, treat as completed
+  if (response.ok || response.status === 204) {
+    return {
+      id: captureData.id || orderId,
+      status: captureData.status || 'COMPLETED',
+      ...captureData,
+    };
   }
 
-  return captureData;
+  // Check if order was already captured (e.g. repeated callback or page reload)
+  const isAlreadyCaptured =
+    captureData?.details?.some((d) => d.issue === 'ORDER_ALREADY_CAPTURED') ||
+    captureData?.name === 'ORDER_ALREADY_CAPTURED';
+
+  if (isAlreadyCaptured) {
+    return { id: orderId, status: 'COMPLETED', alreadyCaptured: true };
+  }
+
+  // Fallback verification: Check actual order details from PayPal before giving up
+  try {
+    const details = await getOrderDetails(orderId);
+    if (details.status === 'COMPLETED' || details.status === 'APPROVED') {
+      return { id: orderId, status: details.status, ...details };
+    }
+  } catch (checkErr) {
+    console.warn(`[PayPal] Order verification check warning:`, checkErr.message);
+  }
+
+  const errorDetail =
+    captureData?.details?.[0]?.description ||
+    captureData?.message ||
+    captureData?.name ||
+    `HTTP ${response.status}`;
+
+  throw new Error(`PayPal capture: ${errorDetail}`);
 }
 
 /**
@@ -164,10 +204,11 @@ export async function getOrderDetails(orderId) {
     },
   });
 
-  const data = await response.json();
+  const data = await parseResponseBody(response);
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch PayPal order (${response.status}): ${JSON.stringify(data)}`);
+    const detail = data?.details?.[0]?.description || data?.message || JSON.stringify(data);
+    throw new Error(`Failed to fetch PayPal order (${response.status}): ${detail}`);
   }
 
   return data;

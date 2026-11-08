@@ -145,6 +145,27 @@ router.get('/capture', async (req, res) => {
       });
     }
 
+    // Resilience: If Render spun down and storage was reset during checkout, reconstruct the invoice
+    if (!updatedInvoice) {
+      const payerName = captureResult?.payer?.name
+        ? `${captureResult.payer.name.given_name || ''} ${captureResult.payer.name.surname || ''}`.trim()
+        : 'PayPal Buyer';
+      const purchaseUnit = captureResult?.purchase_units?.[0] || {};
+      const reconstructedInvoice = {
+        id: invoiceId || `INV-${Date.now().toString(36).toUpperCase()}`,
+        client_name: payerName || 'Client',
+        amount: parseFloat(purchaseUnit?.amount?.value || 0),
+        currency: purchaseUnit?.amount?.currency_code || 'USD',
+        description: purchaseUnit?.description || 'Invoice Payment',
+        due_date: new Date().toISOString().split('T')[0],
+        status: 'PAID',
+        paypal_order_id: token,
+        capturedAt: new Date().toISOString(),
+      };
+      await saveInvoice(reconstructedInvoice);
+      updatedInvoice = reconstructedInvoice;
+    }
+
     const targetInvoiceId = updatedInvoice?.id || invoiceId || '';
     // Redirect buyer back to home page with success status using configured BASE_URL
     return res.redirect(`${baseUrl}/?status=paid&invoiceId=${encodeURIComponent(targetInvoiceId)}&orderId=${encodeURIComponent(token)}`);

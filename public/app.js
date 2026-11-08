@@ -111,7 +111,7 @@ function setupEventListeners() {
 
   // Copy Buttons
   copyLinkBtn.addEventListener('click', () => {
-    copyToClipboard(paymentLinkInput.value, 'Payment link copied to clipboard!');
+    copyToClipboard(paymentLinkInput.value, 'Payment link copied! (Tip: Open in an Incognito window to pay)');
   });
 
   copyReminderBtn.addEventListener('click', () => {
@@ -341,9 +341,10 @@ function renderInvoicesTable(invoices) {
               ${
                 isPaid
                   ? `<span class="paid-label">✓ Paid</span>`
-                  : inv.payment_link
-                  ? `<a href="${inv.payment_link}" target="_blank" class="btn btn-paypal btn-small">Pay with Sandbox</a>`
-                  : `<span class="text-muted">-</span>`
+                  : `
+                      ${inv.payment_link ? `<a href="${inv.payment_link}" target="_blank" class="btn btn-paypal btn-small" title="Pay with Sandbox in Incognito window">Pay with Sandbox</a>` : ''}
+                      <button type="button" class="btn btn-sync btn-small" onclick="syncInvoice('${inv.id}')" title="Check and sync payment status with PayPal">🔄 Sync</button>
+                    `
               }
               <button type="button" class="btn btn-delete btn-small" onclick="deleteInvoice('${inv.id}')" title="Delete invoice">🗑️ Delete</button>
             </div>

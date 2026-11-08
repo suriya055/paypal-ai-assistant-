@@ -476,6 +476,31 @@ textarea:focus, input:focus, select:focus {
   border-color: #FCA5A5;
 }
 
+.btn-sync {
+  background-color: #F0FDF4;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.btn-sync:hover {
+  background-color: #DCFCE7;
+  color: #166534;
+  border-color: #86EFAC;
+}
+
+.sandbox-tip-box {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background-color: #EFF6FF;
+  border-left: 4px solid #3B82F6;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #1E40AF;
+  line-height: 1.45;
+}
+
 .history-actions {
   display: flex;
   align-items: center;
