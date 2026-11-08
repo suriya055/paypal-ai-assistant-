@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOrder, captureOrder } from '../services/paypal.service.js';
+import { createOrder, captureOrder, getBaseUrl } from '../services/paypal.service.js';
 import { generateReminderMessage } from '../services/gemini.service.js';
 import { saveInvoice, getInvoiceById, updateInvoiceStatus } from '../services/storage.service.js';
 
@@ -87,15 +87,32 @@ router.post('/create-order', async (req, res) => {
 });
 
 /**
+ * GET /api/paypal/pay/:invoiceId
+ * Redirects directly to the PayPal sandbox checkout page for a given invoice.
+ */
+router.get('/pay/:invoiceId', async (req, res) => {
+  try {
+    const invoice = await getInvoiceById(req.params.invoiceId);
+    if (!invoice || !invoice.payment_link) {
+      return res.status(404).send('Invoice or payment link not found.');
+    }
+    return res.redirect(invoice.payment_link);
+  } catch (error) {
+    return res.status(500).send('Error redirecting to payment checkout.');
+  }
+});
+
+/**
  * GET /api/paypal/capture
  * PayPal redirects the buyer here after approval.
  * Query params: token (PayPal Order ID), PayerID, invoiceId
  */
 router.get('/capture', async (req, res) => {
   const { token, invoiceId } = req.query;
+  const baseUrl = getBaseUrl();
 
   if (!token) {
-    return res.redirect('/?status=error&message=' + encodeURIComponent('Missing PayPal order token.'));
+    return res.redirect(`${baseUrl}/?status=error&message=${encodeURIComponent('Missing PayPal order token.')}`);
   }
 
   try {
@@ -129,11 +146,11 @@ router.get('/capture', async (req, res) => {
     }
 
     const targetInvoiceId = updatedInvoice?.id || invoiceId || '';
-    // Redirect buyer back to home page with success status
-    return res.redirect(`/?status=paid&invoiceId=${encodeURIComponent(targetInvoiceId)}&orderId=${encodeURIComponent(token)}`);
+    // Redirect buyer back to home page with success status using configured BASE_URL
+    return res.redirect(`${baseUrl}/?status=paid&invoiceId=${encodeURIComponent(targetInvoiceId)}&orderId=${encodeURIComponent(token)}`);
   } catch (error) {
     console.error('Capture error:', error);
-    return res.redirect(`/?status=error&invoiceId=${encodeURIComponent(invoiceId || '')}&message=${encodeURIComponent(error.message)}`);
+    return res.redirect(`${baseUrl}/?status=error&invoiceId=${encodeURIComponent(invoiceId || '')}&message=${encodeURIComponent(error.message)}`);
   }
 });
 
@@ -143,8 +160,9 @@ router.get('/capture', async (req, res) => {
  */
 router.get('/cancel', async (req, res) => {
   const { invoiceId, token } = req.query;
+  const baseUrl = getBaseUrl();
   console.log(`Payment cancelled for invoice ${invoiceId || token}. Status remains CREATED.`);
-  return res.redirect(`/?status=cancelled&invoiceId=${encodeURIComponent(invoiceId || '')}`);
+  return res.redirect(`${baseUrl}/?status=cancelled&invoiceId=${encodeURIComponent(invoiceId || '')}`);
 });
 
 export default router;

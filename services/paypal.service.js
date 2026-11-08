@@ -4,7 +4,16 @@ dotenv.config();
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE || 'https://api-m.sandbox.paypal.com';
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
+
+/**
+ * Returns the configured base URL for the application (e.g., https://my-app.onrender.com or http://localhost:3000).
+ * Checks BASE_URL first, then legacy APP_BASE_URL, defaulting to http://localhost:3000.
+ * Strips trailing slashes to prevent malformed URL redirects.
+ */
+export function getBaseUrl() {
+  const raw = process.env.BASE_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
+  return raw.trim().replace(/\/+$/, '');
+}
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
@@ -52,6 +61,7 @@ export async function getAccessToken() {
  */
 export async function createOrder({ invoiceId, amount, currency = 'USD', description = 'Invoice payment' }) {
   const token = await getAccessToken();
+  const baseUrl = getBaseUrl();
 
   const formattedAmount = Number(amount).toFixed(2);
   const cleanDescription = (description || 'Invoice Payment').substring(0, 127);
@@ -72,8 +82,8 @@ export async function createOrder({ invoiceId, amount, currency = 'USD', descrip
       brand_name: 'AI Invoice Assistant (Sandbox)',
       landing_page: 'BILLING',
       user_action: 'PAY_NOW',
-      return_url: `${APP_BASE_URL}/api/paypal/capture?invoiceId=${encodeURIComponent(invoiceId)}`,
-      cancel_url: `${APP_BASE_URL}/api/paypal/cancel?invoiceId=${encodeURIComponent(invoiceId)}`,
+      return_url: `${baseUrl}/api/paypal/capture?invoiceId=${encodeURIComponent(invoiceId)}`,
+      cancel_url: `${baseUrl}/api/paypal/cancel?invoiceId=${encodeURIComponent(invoiceId)}`,
     },
   };
 

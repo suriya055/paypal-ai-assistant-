@@ -4,23 +4,41 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_FILE = path.join(__dirname, '..', 'data', 'invoices.json');
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_FILE = path.join(DATA_DIR, 'invoices.json');
 
-// Ensure data file exists
-async function ensureDataFile() {
+/**
+ * Ensures the data directory exists and invoices.json exists with valid JSON array ([]).
+ * Creates directory and file automatically if missing or corrupt.
+ */
+export async function ensureDataFile() {
   try {
-    await fs.access(DATA_FILE);
-  } catch {
-    await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
-    await fs.writeFile(DATA_FILE, JSON.stringify([], null, 2), 'utf-8');
+    // 1. Ensure data directory exists
+    await fs.mkdir(DATA_DIR, { recursive: true });
+
+    // 2. Check if invoices.json exists and contains a valid JSON array
+    try {
+      await fs.access(DATA_FILE);
+      const content = await fs.readFile(DATA_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed)) {
+        await fs.writeFile(DATA_FILE, JSON.stringify([], null, 2), 'utf-8');
+      }
+    } catch {
+      // File does not exist, is 0 bytes, or corrupt: write empty array
+      await fs.writeFile(DATA_FILE, JSON.stringify([], null, 2), 'utf-8');
+    }
+  } catch (err) {
+    console.error('Failed to initialize data folder or invoices.json:', err);
   }
 }
 
 export async function getAllInvoices() {
   await ensureDataFile();
-  const content = await fs.readFile(DATA_FILE, 'utf-8');
   try {
-    return JSON.parse(content) || [];
+    const content = await fs.readFile(DATA_FILE, 'utf-8');
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -28,7 +46,7 @@ export async function getAllInvoices() {
 
 export async function getInvoiceById(id) {
   const invoices = await getAllInvoices();
-  return invoices.find((inv) => inv.id === id) || null;
+  return invoices.find((inv) => inv.id === id || inv.paypal_order_id === id) || null;
 }
 
 export async function saveInvoice(invoice) {
@@ -45,6 +63,7 @@ export async function saveInvoice(invoice) {
     });
   }
 
+  await ensureDataFile();
   await fs.writeFile(DATA_FILE, JSON.stringify(invoices, null, 2), 'utf-8');
   return invoice;
 }
@@ -60,6 +79,7 @@ export async function updateInvoiceStatus(id, status, extra = {}) {
       ...extra,
       updatedAt: new Date().toISOString(),
     };
+    await ensureDataFile();
     await fs.writeFile(DATA_FILE, JSON.stringify(invoices, null, 2), 'utf-8');
     return invoices[index];
   }
@@ -69,11 +89,13 @@ export async function updateInvoiceStatus(id, status, extra = {}) {
 export async function deleteInvoice(id) {
   const invoices = await getAllInvoices();
   const filtered = invoices.filter((inv) => inv.id !== id && inv.paypal_order_id !== id);
+  await ensureDataFile();
   await fs.writeFile(DATA_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
   return true;
 }
 
 export async function clearAllInvoices() {
+  await ensureDataFile();
   await fs.writeFile(DATA_FILE, JSON.stringify([], null, 2), 'utf-8');
   return true;
 }

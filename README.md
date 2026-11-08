@@ -43,7 +43,7 @@ Freelancers, independent consultants, and small shop owners lose hours every mon
 - **Back End**: Node.js (v18+), Express, dotenv, cors, `@google/genai`
 - **Front End**: Vanilla JavaScript (ES6+), HTML5, Modern CSS (no heavy frontend frameworks, instant load times)
 - **Payments**: PayPal REST API (Sandbox environment, Orders v2)
-- **Storage**: Local JSON file storage (`data/invoices.json`)
+- **Storage**: Local JSON file storage (`data/invoices.json`) with auto-initialization
 
 ---
 
@@ -56,8 +56,8 @@ Freelancers, independent consultants, and small shop owners lose hours every mon
 
 ### 2. Clone and Install
 ```bash
-git clone https://github.com/your-username/ai-invoice-assistant.git
-cd ai-invoice-assistant
+git clone https://github.com/suriya055/paypal-ai-assistant-.git
+cd paypal-ai-assistant-
 npm install
 ```
 
@@ -74,7 +74,7 @@ copy .env.example .env
 Open `.env` and fill in your keys:
 ```env
 PORT=3000
-APP_BASE_URL=http://localhost:3000
+BASE_URL=http://localhost:3000
 
 # PayPal Developer Sandbox Credentials
 PAYPAL_CLIENT_ID=your_paypal_sandbox_client_id
@@ -83,6 +83,7 @@ PAYPAL_API_BASE=https://api-m.sandbox.paypal.com
 
 # Google Gemini API Key
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
 ### 4. Setting Up PayPal Sandbox Accounts
@@ -104,6 +105,34 @@ GEMINI_API_KEY=your_gemini_api_key
 npm start
 ```
 Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+
+---
+
+## 🌐 Deploy on Render
+
+You can deploy the app as a live cloud demo on [Render](https://render.com/) in under 3 minutes:
+
+1. Create a new **Web Service** on Render and connect your GitHub repository (`suriya055/paypal-ai-assistant-`).
+2. Select **Node** as the runtime environment.
+3. Configure the build and start commands:
+   - **Build Command:** `npm install`
+   - **Start Command:** `npm start`
+4. In the **Environment Variables** tab, add the following variables:
+
+| Variable | Required | Description | Example / Default |
+| :--- | :---: | :--- | :--- |
+| `BASE_URL` | **Yes** | Public URL of your deployed Render app (used for PayPal callbacks) | `https://your-service-name.onrender.com` |
+| `PAYPAL_CLIENT_ID` | **Yes** | PayPal Sandbox app Client ID | `your_sandbox_client_id` |
+| `PAYPAL_CLIENT_SECRET` | **Yes** | PayPal Sandbox app Client Secret | `your_sandbox_client_secret` |
+| `PAYPAL_API_BASE` | No | PayPal REST API endpoint (Sandbox) | `https://api-m.sandbox.paypal.com` |
+| `GEMINI_API_KEY` | **Yes** | Google Gemini API key from Google AI Studio | `your_gemini_api_key` |
+| `GEMINI_MODEL` | No | Gemini model to use (default: `gemini-3.8-flash`) | `gemini-3.8-flash` |
+| `PORT` | Auto | Listening port (Render sets this automatically) | `10000` or `3000` |
+
+> [!NOTE]
+> **Hosted Demo Disclaimer:**
+> - **PayPal Sandbox Only:** The hosted demo operates strictly in PayPal's Sandbox mode. No real money or real credit cards are processed.
+> - **Ephemeral Storage & Service Restarts:** The app uses local JSON storage (`data/invoices.json`). Render's free tier spins down after periods of inactivity, so invoice history will automatically reset to `[]` whenever the service restarts. The storage service automatically recreates the `data/` directory and an empty `invoices.json` if missing.
 
 ---
 
@@ -129,7 +158,7 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
    - Copy the payment link or click **Open Checkout &rarr;** in an **Incognito / Private browser window** (to prevent conflicts with any existing PayPal cookies).
    - Log in using your **US Personal Sandbox Buyer** test account.
    - Click **Complete Purchase**.
-   - PayPal will redirect back to `http://localhost:3000/?status=paid`, automatically triggering the server-side capture.
+   - PayPal will redirect back to `${BASE_URL}/?status=paid`, automatically triggering the server-side capture.
    - The UI displays a green **Payment Successful** banner and updates the invoice status in the history table to **PAID** with a `✓ Paid` badge.
 
 ---
@@ -144,7 +173,7 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ## ⚠️ Known Limitations
 - **Sandbox Mode Only**: Configured specifically for the PayPal Sandbox environment to enable risk-free testing without real financial transactions.
-- **Local JSON Storage**: Invoices are stored in `data/invoices.json` for lightweight, zero-dependency local execution rather than an external SQL/NoSQL database.
+- **Local JSON Storage**: Invoices are stored in `data/invoices.json` for lightweight, zero-dependency local execution rather than an external SQL/NoSQL database. On ephemeral hosting environments like Render free tier, data resets to `[]` whenever the instance restarts.
 
 ---
 
