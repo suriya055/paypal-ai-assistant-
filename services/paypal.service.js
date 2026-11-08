@@ -1,10 +1,24 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
-const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-const rawApiBase = process.env.PAYPAL_API_BASE || 'https://api-m.sandbox.paypal.com';
-const PAYPAL_API_BASE = rawApiBase.trim().replace(/\/+$/, '');
+/**
+ * Strips whitespace, newlines, and surrounding quotes from environment values.
+ */
+function cleanEnvString(val) {
+  if (!val) return '';
+  return val.trim().replace(/^["']|["']$/g, '');
+}
+
+/**
+ * Returns sanitized PayPal configuration credentials.
+ */
+export function getPayPalCredentials() {
+  const clientId = cleanEnvString(process.env.PAYPAL_CLIENT_ID);
+  const clientSecret = cleanEnvString(process.env.PAYPAL_CLIENT_SECRET);
+  const rawApiBase = cleanEnvString(process.env.PAYPAL_API_BASE) || 'https://api-m.sandbox.paypal.com';
+  const apiBase = rawApiBase.replace(/\/+$/, '');
+  return { clientId, clientSecret, apiBase };
+}
 
 /**
  * Returns the configured base URL for the application (e.g., https://my-app.onrender.com or http://localhost:3000).
@@ -12,8 +26,8 @@ const PAYPAL_API_BASE = rawApiBase.trim().replace(/\/+$/, '');
  * Strips trailing slashes to prevent malformed URL redirects.
  */
 export function getBaseUrl() {
-  const raw = process.env.BASE_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
-  return raw.trim().replace(/\/+$/, '');
+  const raw = cleanEnvString(process.env.BASE_URL || process.env.APP_BASE_URL) || 'http://localhost:3000';
+  return raw.replace(/\/+$/, '');
 }
 
 let cachedToken = null;
@@ -40,8 +54,10 @@ async function parseResponseBody(response) {
  * Automatically caches the token until shortly before expiration.
  */
 export async function getAccessToken() {
-  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
-    throw new Error('Missing PayPal credentials. Please configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in .env.');
+  const { clientId, clientSecret, apiBase } = getPayPalCredentials();
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing PayPal credentials. Please configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in your environment.');
   }
 
   // Return cached token if valid (with 60-second buffer)
@@ -49,9 +65,9 @@ export async function getAccessToken() {
     return cachedToken;
   }
 
-  const basicAuth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-  const response = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+  const response = await fetch(`${apiBase}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${basicAuth}`,
@@ -63,7 +79,10 @@ export async function getAccessToken() {
   const data = await parseResponseBody(response);
 
   if (!response.ok) {
-    throw new Error(`PayPal OAuth failure (${response.status}): ${data.error_description || data.error || JSON.stringify(data)}`);
+    const hint = response.status === 401
+      ? ' (Client Authentication failed: Check that PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in Render Environment Variables match your PayPal Developer Sandbox App exactly, with no leading/trailing spaces or mixed keys)'
+      : '';
+    throw new Error(`PayPal OAuth failure (${response.status}): ${data.error_description || data.error || JSON.stringify(data)}${hint}`);
   }
 
   cachedToken = data.access_token;
@@ -78,6 +97,7 @@ export async function getAccessToken() {
  */
 export async function createOrder({ invoiceId, amount, currency = 'USD', description = 'Invoice payment' }) {
   const token = await getAccessToken();
+  const { apiBase } = getPayPalCredentials();
   const baseUrl = getBaseUrl();
 
   const formattedAmount = Number(amount).toFixed(2);
@@ -104,7 +124,7 @@ export async function createOrder({ invoiceId, amount, currency = 'USD', descrip
     },
   };
 
-  const response = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
+  const response = await fetch(`${apiBase}/v2/checkout/orders`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -140,8 +160,9 @@ export async function createOrder({ invoiceId, amount, currency = 'USD', descrip
  */
 export async function captureOrder(orderId) {
   const token = await getAccessToken();
+  const { apiBase } = getPayPalCredentials();
 
-  const response = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderId}/capture`, {
+  const response = await fetch(`${apiBase}/v2/checkout/orders/${orderId}/capture`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -195,8 +216,9 @@ export async function captureOrder(orderId) {
  */
 export async function getOrderDetails(orderId) {
   const token = await getAccessToken();
+  const { apiBase } = getPayPalCredentials();
 
-  const response = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderId}`, {
+  const response = await fetch(`${apiBase}/v2/checkout/orders/${orderId}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
