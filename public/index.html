@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Invoice Assistant - PayPal Hackathon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Header with Brand & Sandbox Badge -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path d="M7 21L10.5 3H17C19.5 3 21 4.5 20.5 7C20 9.5 18 11.5 15.5 11.5H12L10.5 21H7Z" fill="#003087"/>
+            <path d="M9.5 21L12.5 5H18C19.8 5 21 6.2 20.5 8C20 10 18.5 11.5 16.5 11.5H14L12.5 21H9.5Z" fill="#0070BA" opacity="0.85"/>
+          </svg>
+        </div>
+        <div>
+          <h1>AI Invoice Assistant</h1>
+          <p class="subtitle">Turn plain sentences into instant PayPal checkout links with Gemini AI</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="badge sandbox-badge">
+          <span class="badge-dot"></span> PayPal Sandbox Mode
+        </span>
+        <span class="badge ai-badge">✨ Gemini 3.8 Flash</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Banner (for payment return) -->
+  <div id="statusBanner" class="status-banner hidden">
+    <div class="banner-content">
+      <span id="bannerIcon" class="banner-icon">🎉</span>
+      <span id="bannerMessage">Payment completed successfully!</span>
+      <button id="closeBannerBtn" class="close-banner">&times;</button>
+    </div>
+  </div>
+
+  <main class="main-container">
+    <!-- Step 1: Prompt Input Card -->
+    <section class="card" id="inputSection">
+      <div class="card-header">
+        <div class="step-tag">Step 1</div>
+        <h2>Describe your invoice in plain English</h2>
+      </div>
+      <p class="section-desc">Type naturally — the AI extracts the client, amount, currency, service description, and due date automatically.</p>
+
+      <form id="promptForm">
+        <div class="sender-name-wrapper">
+          <label for="senderNameInput">Your Name <span class="label-hint">(optional, signs your client messages)</span></label>
+          <input
+            type="text"
+            id="senderNameInput"
+            placeholder="e.g., Alex Rivera (leaves blank for 'Best regards')"
+            autocomplete="name"
+          />
+        </div>
+
+        <div class="input-group">
+          <textarea
+            id="promptInput"
+            rows="3"
+            placeholder='e.g., "Invoice Ravi $50 for logo design, due next Friday."'
+            required
+          ></textarea>
+        </div>
+
+        <div class="prompt-examples">
+          <span class="examples-label">Try an example:</span>
+          <button type="button" class="example-chip" data-prompt="Invoice Ravi $50 for logo design, due next Friday.">
+            Ravi &bull; $50 logo design
+          </button>
+          <button type="button" class="example-chip" data-prompt="Bill Sarah Johnson $180 for 3 hours of website maintenance, due in 5 days.">
+            Sarah &bull; $180 web maintenance
+          </button>
+          <button type="button" class="example-chip" data-prompt="Charge Quantum Labs $1,250 for cybersecurity audit, due by the 30th of this month.">
+            Quantum Labs &bull; $1,250 security audit
+          </button>
+        </div>
+
+        <button type="submit" id="extractBtn" class="btn btn-primary">
+          <span class="btn-text">Extract with AI</span>
+          <span class="btn-spinner hidden"></span>
+        </button>
+      </form>
+    </section>
+
+    <!-- Step 2: Confirmation & Editing Card -->
+    <section class="card hidden" id="reviewSection">
+      <div class="card-header">
+        <div class="step-tag">Step 2</div>
+        <h2>Review and confirm invoice details</h2>
+      </div>
+      <p class="section-desc">Verify what the AI extracted. You can edit any field before generating the official PayPal order.</p>
+
+      <form id="confirmForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="clientNameInput">Client / Business Name</label>
+            <input type="text" id="clientNameInput" required />
+          </div>
+
+          <div class="form-group">
+            <label for="amountInput">Amount</label>
+            <div class="input-with-prefix">
+              <span class="currency-symbol" id="currencySymbol">$</span>
+              <input type="number" step="0.01" min="0.01" id="amountInput" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="currencySelect">Currency</label>
+            <select id="currencySelect">
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="CAD">CAD ($)</option>
+              <option value="AUD">AUD ($)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="dueDateInput">Due Date</label>
+            <input type="date" id="dueDateInput" required />
+          </div>
+
+          <div class="form-group full-width">
+            <label for="descriptionInput">Service / Item Description</label>
+            <input type="text" id="descriptionInput" required />
+          </div>
+
+          <div class="form-group full-width">
+            <label for="reviewSenderNameInput">Your Name <span class="label-hint">(signs the reminder with "Best regards, [name]")</span></label>
+            <input type="text" id="reviewSenderNameInput" placeholder="e.g., Alex Rivera (leave blank for 'Best regards')" />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" id="discardBtn" class="btn btn-secondary">Discard & Start Over</button>
+          <button type="submit" id="createOrderBtn" class="btn btn-paypal">
+            <span class="btn-text">Confirm & Generate PayPal Order</span>
+            <span class="btn-spinner hidden"></span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Step 3: Success, Payment Link & AI Reminder Message Card -->
+    <section class="card card-success hidden" id="resultSection">
+      <div class="card-header">
+        <div class="step-tag success-tag">Step 3 &bull; Ready!</div>
+        <h2>PayPal Order Created Successfully</h2>
+      </div>
+
+      <div class="result-body">
+        <!-- Payment Link Box -->
+        <div class="payment-box">
+          <div class="payment-box-header">
+            <h3>💳 PayPal Sandbox Payment Link</h3>
+            <span class="status-pill status-created" id="resultStatusPill">CREATED</span>
+          </div>
+          <p class="payment-info">Share this link with your client or click it to test paying with your Sandbox Buyer account.</p>
+
+          <div class="link-display-group">
+            <input type="text" id="paymentLinkInput" readonly />
+            <button type="button" id="copyLinkBtn" class="btn btn-small">Copy Link</button>
+            <a href="#" target="_blank" id="payNowBtn" class="btn btn-paypal btn-small">Open Checkout &rarr;</a>
+          </div>
+          <div class="order-meta">
+            <span><strong>Invoice ID:</strong> <span id="metaInvoiceId"></span></span>
+            <span><strong>PayPal Order ID:</strong> <span id="metaOrderId"></span></span>
+          </div>
+        </div>
+
+        <!-- AI Reminder Copy Box -->
+        <div class="reminder-box">
+          <div class="reminder-header">
+            <h3>💬 AI-Generated Client Reminder Message</h3>
+            <button type="button" id="copyReminderBtn" class="btn btn-small btn-outline">
+              📋 Copy Message
+            </button>
+          </div>
+          <p class="reminder-desc">Polite, ready-to-send message crafted by Gemini with the details and payment link included:</p>
+          <div class="reminder-content" id="reminderTextDisplay"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Invoice History Section -->
+    <section class="card" id="historySection">
+      <div class="card-header between">
+        <div>
+          <h2>Invoice History</h2>
+          <p class="section-desc">Invoices created during this session (stored locally in <code>data/invoices.json</code>).</p>
+        </div>
+        <div class="history-actions">
+          <button type="button" id="clearAllBtn" class="btn btn-small btn-danger">
+            🗑️ Clear all test data
+          </button>
+          <button type="button" id="refreshHistoryBtn" class="btn btn-small btn-secondary">
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="invoices-table">
+          <thead>
+            <tr>
+              <th>Invoice ID</th>
+              <th>Client</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="invoicesTableBody">
+            <tr>
+              <td colspan="7" class="table-empty">No invoices created yet. Generate your first one above!</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Built for the <strong>PayPal AI Hackathon</strong> ("Build What's Next with PayPal and AI") &bull; Powered by Google Gemini Flash &amp; PayPal Orders v2</p>
+  </footer>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

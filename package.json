@@ -1,0 +1,17 @@
+{
+  "name": "ai-invoice-assistant",
+  "version": "1.0.0",
+  "description": "AI Invoice Assistant for PayPal Hackathon using Gemini and PayPal Sandbox Orders v2",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.29.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
