@@ -3,6 +3,9 @@ const promptForm = document.getElementById('promptForm');
 const promptInput = document.getElementById('promptInput');
 const senderNameInput = document.getElementById('senderNameInput');
 const extractBtn = document.getElementById('extractBtn');
+const voiceTypingBtn = document.getElementById('voiceTypingBtn');
+const voiceStatus = document.getElementById('voiceStatus');
+const voiceStatusText = document.getElementById('voiceStatusText');
 const exampleChips = document.querySelectorAll('.example-chip');
 
 const reviewSection = document.getElementById('reviewSection');
@@ -50,6 +53,7 @@ const currencySymbols = {
 // Initialize Application
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  initVoiceTyping();
   await loadInvoices();
   await handleUrlQueryParams();
 
@@ -462,4 +466,92 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * Voice Typing (Speech-to-Text) using Web Speech API
+ */
+function initVoiceTyping() {
+  if (!voiceTypingBtn) return;
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    voiceTypingBtn.addEventListener('click', () => {
+      alert('Voice typing is supported in Google Chrome, Microsoft Edge, and Safari on desktop and mobile. Please use a supported browser to speak your invoice.');
+    });
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  let isListening = false;
+  let basePromptText = '';
+
+  recognition.onstart = () => {
+    isListening = true;
+    basePromptText = promptInput.value.trim();
+    voiceTypingBtn.classList.add('listening');
+    voiceTypingBtn.innerHTML = '<span class="voice-icon">🛑</span> <span class="voice-label">Stop Listening</span>';
+    if (voiceStatus) {
+      voiceStatus.classList.remove('hidden');
+      if (voiceStatusText) {
+        voiceStatusText.textContent = 'Listening... Speak your invoice naturally (e.g. "Invoice Ravi $50 for logo design due next Friday")';
+      }
+    }
+  };
+
+  recognition.onresult = (event) => {
+    let transcript = '';
+    for (let i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    promptInput.value = basePromptText ? `${basePromptText} ${transcript}` : transcript;
+  };
+
+  recognition.onerror = (event) => {
+    console.warn('Speech recognition error:', event.error);
+    if (event.error === 'not-allowed') {
+      showToast('Microphone access was blocked. Please allow mic permissions in your browser.');
+    } else if (event.error !== 'no-speech') {
+      showToast(`Voice error: ${event.error}`);
+    }
+    stopListening();
+  };
+
+  recognition.onend = () => {
+    stopListening();
+    if (promptInput.value.trim()) {
+      showToast('Voice captured! Click "Extract with AI" to review.');
+    }
+  };
+
+  function stopListening() {
+    isListening = false;
+    voiceTypingBtn.classList.remove('listening');
+    voiceTypingBtn.innerHTML = '<span class="voice-icon">🎤</span> <span class="voice-label">Speak Invoice (Voice Typing)</span>';
+    if (voiceStatus) {
+      voiceStatus.classList.add('hidden');
+    }
+  }
+
+  voiceTypingBtn.addEventListener('click', () => {
+    if (isListening) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn(e);
+      }
+      stopListening();
+    } else {
+      try {
+        recognition.start();
+      } catch (err) {
+        console.warn('Recognition start error:', err);
+      }
+    }
+  });
 }

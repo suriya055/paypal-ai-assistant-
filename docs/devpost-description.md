@@ -12,7 +12,7 @@ This inspired the **AI Invoice Assistant** for the PayPal AI Hackathon—bridgin
 ## 🚀 What It Does
 **AI Invoice Assistant** turns plain conversational language into working PayPal Sandbox payment orders in seconds:
 
-1. **Conversational Input**: The user types an informal instruction (e.g., *"Invoice Ravi $50 for logo design, due next Friday"*).
+1. **Conversational Input (Voice or Text)**: The user speaks via the native microphone button or types an informal instruction (e.g., *"Invoice Ravi $50 for logo design, due next Friday"*).
 2. **Schema-Constrained AI Extraction**: Powered by Google Gemini Flash, the backend parses the sentence into structured data: client name, numerical amount, currency code, service description, and resolves relative dates ("next Friday", "in 5 days") into ISO `YYYY-MM-DD` dates relative to current server time.
 3. **Human-in-the-Loop Review**: An intuitive confirmation form presents the extracted data so the user can verify or adjust any field before any transaction is initiated.
 4. **PayPal Orders v2 Integration**: With one click, the server creates an official PayPal Sandbox order (`intent: CAPTURE`) and returns an active checkout link.
@@ -26,6 +26,7 @@ This inspired the **AI Invoice Assistant** for the PayPal AI Hackathon—bridgin
 - **PayPal Developer Platform (Orders v2 REST API)**: Integrated OAuth2 client credentials authentication, dynamic order creation with custom line items, approval redirects, and server-side capture execution (`POST /v2/checkout/orders/{id}/capture`).
 - **Node.js & Express**: Provides a lightweight, secure REST backend that keeps client credentials and API keys completely hidden from the browser.
 - **Antigravity**: Used as the primary agentic AI coding assistant from Google DeepMind to architect the modular backend, write clean vanilla frontend logic, establish security controls, and systematically verify responsive mobile layouts across viewports.
+- **Web Speech API**: Integrated native speech recognition for real-time voice typing, allowing users to speak their invoices completely hands-free on both mobile and desktop.
 - **Vanilla Frontend & CSS**: Crafted with pure HTML5, CSS3, and ES6 JavaScript with zero frontend dependencies for near-instant load times and clean mobile presentation.
 
 ---
@@ -62,7 +63,8 @@ This inspired the **AI Invoice Assistant** for the PayPal AI Hackathon—bridgin
 ---
 
 ## 🔮 What's Next
+- **Live In-Person Shopkeeper & Customer Co-Presence Mode**: A real-time dual-screen interface where a local merchant or shopkeeper speaks items naturally, the customer sees a live interactive display updating in real-time, and pays instantly via on-screen dynamic PayPal QR codes.
 - **PayPal Invoicing API**: Transitioning from checkout orders to official PDF invoices sent directly to client email inboxes with tax and discount lines.
-- **Voice Dictation via Gemini Live API**: Enabling freelancers on the move to dictate invoices hands-free from their smartphones.
+- **Gemini Live API Bidirectional Voice Assistant**: Enabling continuous, full voice conversations with conversational adjustments and queries.
 - **Automated Escalation Reminders**: Generating scheduled reminder sequences (friendly nudge &rarr; due date reminder &rarr; overdue follow-up).
 - **Direct Messaging Integrations**: Adding one-click share buttons directly to WhatsApp, Slack, and email clients.

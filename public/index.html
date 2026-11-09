@@ -72,6 +72,11 @@
           ></textarea>
         </div>
 
+        <div id="voiceStatus" class="voice-status hidden">
+          <span class="recording-pulse"></span>
+          <span id="voiceStatusText">Listening... Speak your invoice naturally</span>
+        </div>
+
         <div class="prompt-examples">
           <span class="examples-label">Try an example:</span>
           <button type="button" class="example-chip" data-prompt="Invoice Ravi $50 for logo design, due next Friday.">
@@ -85,10 +90,16 @@
           </button>
         </div>
 
-        <button type="submit" id="extractBtn" class="btn btn-primary">
-          <span class="btn-text">Extract with AI</span>
-          <span class="btn-spinner hidden"></span>
-        </button>
+        <div class="step1-actions">
+          <button type="submit" id="extractBtn" class="btn btn-primary">
+            <span class="btn-text">Extract with AI</span>
+            <span class="btn-spinner hidden"></span>
+          </button>
+          <button type="button" id="voiceTypingBtn" class="btn btn-voice" title="Click to speak your invoice using voice typing">
+            <span class="voice-icon">🎤</span>
+            <span class="voice-label">Speak Invoice (Voice Typing)</span>
+          </button>
+        </div>
       </form>
     </section>
 

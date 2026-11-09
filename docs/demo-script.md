@@ -14,14 +14,17 @@
 
 ---
 
-### 0:20 - 0:45 | Step 1: Plain-English Input & AI Extraction
+### 0:20 - 0:45 | Step 1: Voice or Text Input & AI Extraction
 - **On Screen:** 
   1. In the **Your Name** field, type your name (e.g., `Alex Rivera`).
-  2. Click into the textarea and type or click the example chip:
-     `Invoice Ravi $50 for logo design, due next Friday.`
-  3. Click the blue **Extract with AI** button.
+  2. Click the **🎤 Speak Invoice (Voice Typing)** button (it turns red and pulses: *"Listening..."*).
+  3. Speak clearly into the microphone:
+     > *"Invoice Ravi $50 for logo design, due next Friday."*
+     *(Or click the example chip if recording without a mic).*
+  4. Notice the text fills the box automatically in real time.
+  5. Click the blue **Extract with AI** button.
 - **Voiceover:**
-  > *"Here's how simple it is: I enter my name, and then I just type naturally: 'Invoice Ravi $50 for logo design, due next Friday.' When I click 'Extract with AI', the request goes to Google Gemini 3.8 Flash using a strict schema-constrained JSON output. In less than a second, it extracts Ravi as the client, fifty dollars USD, the description, and automatically converts 'next Friday' into a formatted calendar date."*
+  > *"Here's how simple it is: I enter my name, and I can either type naturally or use Voice Typing hands-free by speaking: 'Invoice Ravi $50 for logo design, due next Friday.' When I click 'Extract with AI', the request goes to Google Gemini 3.8 Flash using strict schema-constrained JSON output. In less than a second, it extracts Ravi as the client, fifty dollars USD, the description, and automatically converts 'next Friday' into a formatted calendar date."*
 
 ---
 

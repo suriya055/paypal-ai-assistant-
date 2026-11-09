@@ -28,6 +28,7 @@ Freelancers, independent consultants, and small shop owners lose hours every mon
 ---
 
 ## 🌟 Key Features
+- **Voice-to-Invoice (Speech-to-Text)**: Speak your invoice out loud using the native microphone button (`🎤 Speak Invoice`). Words transcribe directly into the prompt in real time for a truly hands-free invoicing experience.
 - **Natural Language Parsing**: Understands informal instructions and converts relative dates ("next Friday", "in 5 days") into ISO dates based on current server time.
 - **Schema-Constrained JSON Extraction**: Uses `@google/genai` with `responseMimeType: "application/json"` and structured schema definitions, plus a user confirmation step before any payment order is created.
 - **Safe Human-in-the-Loop Confirmation**: Users can inspect and adjust amounts, currencies, or descriptions prior to generating the PayPal order.
