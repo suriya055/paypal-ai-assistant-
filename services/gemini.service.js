@@ -5,19 +5,31 @@ dotenv.config();
 // Initialize the Google GenAI client (uses process.env.GEMINI_API_KEY by default)
 const ai = new GoogleGenAI();
 
-// Primary model requested: gemini-3.8-flash, with automatic resilient fallbacks
+// Primary model: gemini-3.8-flash, with automatic resilient fallbacks
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const FALLBACK_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
 
+// Cache models that hit 429 RESOURCE_EXHAUSTED so subsequent requests don't waste 10s waiting
+const modelCooldowns = new Map();
+
 /**
- * Resilient helper to call Gemini with the primary model (gemini-3.8-flash)
- * and automatically fallback if Google AI Studio reports high demand (503) or quota limits.
+ * Resilient helper to call Gemini with the primary model
+ * and automatically fallback if Google AI Studio reports high demand (503) or quota limits (429).
  */
 async function generateWithModelFallback({ contents, config }) {
   const modelQueue = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
   let lastError = null;
+  const now = Date.now();
 
-  for (const model of modelQueue) {
+  // Prioritize models that are NOT in active 429 quota exhaustion cooldown
+  const readyModels = modelQueue.filter((m) => {
+    const cooldown = modelCooldowns.get(m);
+    return !cooldown || now > cooldown;
+  });
+
+  const queueToTry = readyModels.length > 0 ? readyModels : modelQueue;
+
+  for (const model of queueToTry) {
     try {
       const response = await ai.models.generateContent({
         model,
@@ -30,7 +42,17 @@ async function generateWithModelFallback({ contents, config }) {
       }
     } catch (err) {
       lastError = err;
-      console.warn(`[Gemini AI] Model ${model} encountered: ${err.message}. Trying next available model...`);
+      const isQuota =
+        err.message?.includes('429') ||
+        err.message?.includes('RESOURCE_EXHAUSTED') ||
+        err.message?.includes('quota');
+
+      if (isQuota) {
+        console.warn(`[Gemini AI] Model ${model} is quota-exhausted (429). Cooling down for 30m and trying next model...`);
+        modelCooldowns.set(model, Date.now() + 30 * 60 * 1000);
+      } else {
+        console.warn(`[Gemini AI] Model ${model} encountered: ${err.message}. Trying next available model...`);
+      }
     }
   }
 
@@ -39,7 +61,7 @@ async function generateWithModelFallback({ contents, config }) {
 
 /**
  * Extracts structured invoice details from a plain-English user prompt.
- * Uses Gemini 3.8 Flash with strict JSON schema to guarantee valid structured output.
+ * Uses Gemini Flash with strict JSON schema to guarantee valid structured output.
  */
 export async function parseInvoicePrompt(userPrompt) {
   if (!userPrompt || typeof userPrompt !== 'string' || userPrompt.trim().length === 0) {
@@ -56,7 +78,7 @@ Rules:
 1. Calculate relative dates (like "next Friday", "in 5 days", "end of month") starting from today (${todayStr}) in YYYY-MM-DD format.
 2. If no due date is mentioned, calculate a default date 7 days from today.
 3. If currency is not specified or is '$', use "USD". If symbols like '€' or '£' are used, use "EUR" or "GBP".
-4. Ensure amount is a valid positive number (e.g., "$50" -> 50).
+4. Ensure amount is a valid positive number (e.g., "$50" -> 50, "fifty dollars" -> 50).
 5. Extract client_name, amount, currency, description, and due_date accurately.
 `.trim();
 
@@ -113,40 +135,40 @@ Rules:
 
 /**
  * Generates a short, polite, professional reminder message that the user can copy
- * and send to their client with the payment link.
+ * and send directly to their client via email, WhatsApp, or Slack.
  */
 export async function generateReminderMessage({ client_name, amount, currency, description, due_date, payment_link, sender_name }) {
-  const cleanSender = (sender_name || '').trim();
-  const signatureRule = cleanSender
-    ? `Sign the message with "Best regards, ${cleanSender}".`
-    : `Sign the message with "Best regards".`;
+  const signOff = sender_name ? `Best regards,\n${sender_name}` : 'Best regards';
 
   const prompt = `
-Write a friendly, professional, and concise payment reminder message for:
+Write a friendly, polite, and professional payment reminder message from a freelancer to a client.
+Details:
 - Client Name: ${client_name}
-- Amount: ${currency} ${Number(amount).toFixed(2)}
-- Description: ${description}
-- Due Date: ${due_date || 'upon receipt'}
+- Service / Description: ${description}
+- Total Amount: ${currency} ${Number(amount).toFixed(2)}
+- Due Date: ${due_date}
 - PayPal Payment Link: ${payment_link}
-${cleanSender ? `- Sender Name: ${cleanSender}` : ''}
+- Sender Name: ${sender_name || 'The Freelancer'}
 
 Requirements:
-1. Ready to copy and paste directly into an email, WhatsApp, or Slack message. Include the link clearly.
-2. Do not output any placeholders (never output "[Your Name]", "[Company]", or similar).
-3. ${signatureRule}
+- Keep it under 4 sentences.
+- Clear, warm, non-confrontational tone.
+- Clearly present the payment link on its own line.
+- End with "${signOff}".
+- Output the raw message text only (no quotes, no markdown fences).
 `.trim();
 
   try {
-    const { text: responseText, modelUsed } = await generateWithModelFallback({
+    const { text } = await generateWithModelFallback({
       contents: prompt,
+      config: {
+        temperature: 0.7,
+      },
     });
 
-    console.log(`[Gemini AI] Reminder message generated successfully using model: ${modelUsed}`);
-    return responseText.trim();
+    return text.trim();
   } catch (error) {
-    console.error('Gemini reminder message error:', error);
-    // Fallback template if LLM call fails
-    const signOff = cleanSender ? `Best regards,\n${cleanSender}` : 'Best regards';
+    console.warn('Gemini reminder fallback used due to error:', error.message);
     return `Hi ${client_name},\n\nI hope you're having a great week! Here is the invoice for ${description} totaling ${currency} ${Number(amount).toFixed(2)}, due on ${due_date}.\n\nYou can easily review and pay securely via PayPal here:\n${payment_link}\n\n${signOff}`;
   }
 }

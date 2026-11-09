@@ -189,22 +189,38 @@ async function handleUrlQueryParams() {
   }
 }
 
+let globalStopVoice = null;
+
 /**
  * Step 1: Send prompt to Gemini API for entity extraction
  */
 async function handleExtractPrompt(e) {
   e.preventDefault();
+
+  // Stop any active microphone capture session before sending
+  if (typeof globalStopVoice === 'function') {
+    globalStopVoice();
+  }
+
   const text = promptInput.value.trim();
-  if (!text) return;
+  if (!text) {
+    showToast('Please type or speak an invoice sentence first.');
+    return;
+  }
 
   setLoading(extractBtn, true);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
     const res = await fetch('/api/ai/parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: text }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     const data = await res.json();
 
@@ -229,8 +245,10 @@ async function handleExtractPrompt(e) {
 
     showToast('✨ Details extracted by Gemini Flash!');
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error(error);
-    alert(`AI Extraction Error: ${error.message}`);
+    const msg = error.name === 'AbortError' ? 'AI request timed out. Please try again.' : error.message;
+    alert(`AI Extraction Error: ${msg}`);
   } finally {
     setLoading(extractBtn, false);
   }
@@ -483,54 +501,17 @@ function initVoiceTyping() {
     return;
   }
 
-  const recognition = new SpeechRecognition();
-  recognition.continuous = false;
-  recognition.interimResults = true;
-  recognition.lang = 'en-US';
-
+  let recognition = null;
   let isListening = false;
   let basePromptText = '';
 
-  recognition.onstart = () => {
-    isListening = true;
-    basePromptText = promptInput.value.trim();
-    voiceTypingBtn.classList.add('listening');
-    voiceTypingBtn.innerHTML = '<span class="voice-icon">🛑</span> <span class="voice-label">Stop Listening</span>';
-    if (voiceStatus) {
-      voiceStatus.classList.remove('hidden');
-      if (voiceStatusText) {
-        voiceStatusText.textContent = 'Listening... Speak your invoice naturally (e.g. "Invoice Ravi $50 for logo design due next Friday")';
-      }
-    }
-  };
-
-  recognition.onresult = (event) => {
-    let transcript = '';
-    for (let i = 0; i < event.results.length; i++) {
-      transcript += event.results[i][0].transcript;
-    }
-    promptInput.value = basePromptText ? `${basePromptText} ${transcript}` : transcript;
-  };
-
-  recognition.onerror = (event) => {
-    console.warn('Speech recognition error:', event.error);
-    if (event.error === 'not-allowed') {
-      showToast('Microphone access was blocked. Please allow mic permissions in your browser.');
-    } else if (event.error !== 'no-speech') {
-      showToast(`Voice error: ${event.error}`);
-    }
-    stopListening();
-  };
-
-  recognition.onend = () => {
-    stopListening();
-    if (promptInput.value.trim()) {
-      showToast('Voice captured! Click "Extract with AI" to review.');
-    }
-  };
-
   function stopListening() {
     isListening = false;
+    if (recognition) {
+      try {
+        recognition.stop();
+      } catch (e) {}
+    }
     voiceTypingBtn.classList.remove('listening');
     voiceTypingBtn.innerHTML = '<span class="voice-icon">🎤</span> <span class="voice-label">Speak Invoice (Voice Typing)</span>';
     if (voiceStatus) {
@@ -538,20 +519,61 @@ function initVoiceTyping() {
     }
   }
 
+  globalStopVoice = stopListening;
+
   voiceTypingBtn.addEventListener('click', () => {
     if (isListening) {
-      try {
-        recognition.stop();
-      } catch (e) {
-        console.warn(e);
-      }
       stopListening();
-    } else {
-      try {
-        recognition.start();
-      } catch (err) {
-        console.warn('Recognition start error:', err);
-      }
+      return;
+    }
+
+    try {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        isListening = true;
+        basePromptText = promptInput.value.trim();
+        voiceTypingBtn.classList.add('listening');
+        voiceTypingBtn.innerHTML = '<span class="voice-icon">🛑</span> <span class="voice-label">Stop Listening</span>';
+        if (voiceStatus) {
+          voiceStatus.classList.remove('hidden');
+          if (voiceStatusText) {
+            voiceStatusText.textContent = 'Listening... Speak your invoice (e.g. "Invoice Ravi $50 for logo design due next Friday")';
+          }
+        }
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        const full = basePromptText ? `${basePromptText} ${transcript}` : transcript;
+        promptInput.value = full;
+        promptInput.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          showToast('Microphone access was blocked. Please allow mic permissions in your browser.');
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          showToast(`Voice error: ${event.error}`);
+        }
+        stopListening();
+      };
+
+      recognition.onend = () => {
+        stopListening();
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.warn('Recognition start error:', err);
+      stopListening();
     }
   });
 }
